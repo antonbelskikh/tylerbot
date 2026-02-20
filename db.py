@@ -101,12 +101,28 @@ def mark_done(habit_id: int, target_date: date) -> bool:
         return cursor.rowcount > 0
 
 
+def mark_done_for_user(user_id: int, habit_id: int, target_date: date) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO habit_logs (habit_id, log_date, done)
+            SELECT h.id, ?, 1
+            FROM habits h
+            WHERE h.id = ? AND h.user_id = ? AND h.is_active = 1
+            ON CONFLICT(habit_id, log_date) DO UPDATE SET done = 1
+            """,
+            (target_date.isoformat(), habit_id, user_id),
+        )
+        return cursor.rowcount > 0
+
+
 def weekly_status(habit_ids: Iterable[int], week_dates: list[date]) -> dict[tuple[int, str], int]:
-    if not habit_ids:
+    habit_id_list = list(habit_ids)
+    if not habit_id_list:
         return {}
 
-    placeholders = ",".join(["?"] * len(list(habit_ids)))
-    params = list(habit_ids)
+    placeholders = ",".join(["?"] * len(habit_id_list))
+    params = habit_id_list
     params.extend([week_dates[0].isoformat(), week_dates[-1].isoformat()])
 
     with get_connection() as conn:

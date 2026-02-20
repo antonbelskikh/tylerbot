@@ -9,7 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, KeyboardButton, Message, ReplyKeyboardMarkup
 from dotenv import load_dotenv
 
-from db import add_habit, init_db, list_habits, mark_done, upsert_user, weekly_status
+from db import add_habit, init_db, list_habits, mark_done_for_user, upsert_user, weekly_status
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -117,10 +117,21 @@ async def done_callback(callback: CallbackQuery) -> None:
     if not callback.data:
         return
 
-    habit_id = int(callback.data.replace(DONE_PREFIX, ""))
-    mark_done(habit_id, date.today())
+    try:
+        habit_id = int(callback.data.replace(DONE_PREFIX, ""))
+    except ValueError:
+        await callback.answer("Invalid habit", show_alert=True)
+        return
+
+    user_id = upsert_user(callback.from_user.id, callback.from_user.username)
+    saved = mark_done_for_user(user_id, habit_id, date.today())
+    if not saved:
+        await callback.answer("Habit not found", show_alert=True)
+        return
+
     await callback.answer("Saved")
-    await callback.message.answer("Marked done for today ✅")
+    if callback.message:
+        await callback.message.answer("Marked done for today ✅")
 
 
 @dp.message(Command("week"))
