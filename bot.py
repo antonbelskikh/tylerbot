@@ -46,7 +46,7 @@ def week_dates(today: date) -> list[date]:
 
 
 def build_week_table(habits: list, statuses: dict, days: list[date]) -> str:
-    day_header = "".join(d.strftime("%a")[:2] for d in days)
+    day_header = "".join(d.strftime("%a")[0] for d in days)
     lines = [f"Week {days[0].strftime('%d %b')} - {days[-1].strftime('%d %b')}", f"{'':16}{day_header}"]
 
     for h in habits:
