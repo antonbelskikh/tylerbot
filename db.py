@@ -88,6 +88,19 @@ def list_habits(user_id: int) -> list[sqlite3.Row]:
         return list(rows)
 
 
+def deactivate_habit_for_user(user_id: int, habit_id: int) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE habits
+            SET is_active = 0
+            WHERE id = ? AND user_id = ? AND is_active = 1
+            """,
+            (habit_id, user_id),
+        )
+        return cursor.rowcount > 0
+
+
 def mark_done(habit_id: int, target_date: date) -> bool:
     with get_connection() as conn:
         cursor = conn.execute(
