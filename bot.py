@@ -46,8 +46,13 @@ def week_dates(today: date) -> list[date]:
 
 
 def build_week_table(habits: list, statuses: dict, days: list[date]) -> str:
-    day_header = " " + " ".join(d.strftime("%a")[0] for d in days)
-    lines = [f"Week {days[0].strftime('%d %b')} - {days[-1].strftime('%d %b')}", f"{'':16}{day_header}"]
+    title_width = 15
+    day_cell_width = 2
+    day_header = "".join(f"{d.strftime('%a')[0]:<{day_cell_width}}" for d in days).rstrip()
+    lines = [
+        f"Week {days[0].strftime('%d %b')} - {days[-1].strftime('%d %b')}",
+        f"{'':{title_width + 1}}{day_header}",
+    ]
 
     for h in habits:
         habit_id = int(h["id"])
@@ -56,7 +61,7 @@ def build_week_table(habits: list, statuses: dict, days: list[date]) -> str:
         for d in days:
             key = (habit_id, d.isoformat())
             cells.append("🟩" if statuses.get(key, 0) == 1 else "🟥")
-        lines.append(f"{title[:15]:15} {''.join(cells)}")
+        lines.append(f"{title[:title_width]:{title_width}} {''.join(cells)}")
 
     return "\n".join(lines)
 
