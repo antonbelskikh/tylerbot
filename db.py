@@ -129,6 +129,50 @@ def mark_done_for_user(user_id: int, habit_id: int, target_date: date) -> bool:
         return cursor.rowcount > 0
 
 
+def toggle_done_for_user(user_id: int, habit_id: int, target_date: date) -> str | None:
+    with get_connection() as conn:
+        owner_row = conn.execute(
+            """
+            SELECT id
+            FROM habits
+            WHERE id = ? AND user_id = ? AND is_active = 1
+            """,
+            (habit_id, user_id),
+        ).fetchone()
+        if owner_row is None:
+            return None
+
+        log_date = target_date.isoformat()
+        existing_row = conn.execute(
+            """
+            SELECT 1
+            FROM habit_logs
+            WHERE habit_id = ? AND log_date = ? AND done = 1
+            """,
+            (habit_id, log_date),
+        ).fetchone()
+
+        if existing_row:
+            conn.execute(
+                """
+                DELETE FROM habit_logs
+                WHERE habit_id = ? AND log_date = ?
+                """,
+                (habit_id, log_date),
+            )
+            return "unmarked"
+
+        conn.execute(
+            """
+            INSERT INTO habit_logs (habit_id, log_date, done)
+            VALUES (?, ?, 1)
+            ON CONFLICT(habit_id, log_date) DO UPDATE SET done = 1
+            """,
+            (habit_id, log_date),
+        )
+        return "marked"
+
+
 def weekly_status(habit_ids: Iterable[int], week_dates: list[date]) -> dict[tuple[int, str], int]:
     habit_id_list = list(habit_ids)
     if not habit_id_list:

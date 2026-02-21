@@ -10,7 +10,7 @@ from aiogram.types import CallbackQuery, KeyboardButton, Message, ReplyKeyboardM
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from dotenv import load_dotenv
 
-from db import add_habit, deactivate_habit_for_user, init_db, list_habits, mark_done_for_user, upsert_user, weekly_status
+from db import add_habit, deactivate_habit_for_user, init_db, list_habits, toggle_done_for_user, upsert_user, weekly_status
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -73,6 +73,22 @@ async def send_week_view(message: Message, user_id: int) -> None:
     await message.answer(f"<pre>{table}</pre>", parse_mode="HTML")
 
 
+def build_done_keyboard(habits: list) -> InlineKeyboardBuilder:
+    today = date.today()
+    today_iso = today.isoformat()
+    statuses = weekly_status([int(h["id"]) for h in habits], [today])
+
+    kb = InlineKeyboardBuilder()
+    for h in habits:
+        habit_id = int(h["id"])
+        title = str(h["title"])
+        is_done = statuses.get((habit_id, today_iso), 0) == 1
+        marker = "✅" if is_done else "⬜"
+        kb.button(text=f"{marker} {title}", callback_data=f"{DONE_PREFIX}{habit_id}")
+    kb.adjust(1)
+    return kb
+
+
 @dp.message(CommandStart())
 async def start(message: Message) -> None:
     upsert_user(message.from_user.id, message.from_user.username)
@@ -118,12 +134,8 @@ async def done_command(message: Message) -> None:
         await message.answer("No habits yet. Use /add first.")
         return
 
-    kb = InlineKeyboardBuilder()
-    for h in habits:
-        kb.button(text=str(h["title"]), callback_data=f"{DONE_PREFIX}{h['id']}")
-    kb.adjust(1)
-
-    await message.answer("Pick a habit to mark done for today:", reply_markup=kb.as_markup())
+    kb = build_done_keyboard(habits)
+    await message.answer("Toggle done for today (tap again to undo):", reply_markup=kb.as_markup())
 
 
 @dp.callback_query(F.data.startswith(DONE_PREFIX))
@@ -138,14 +150,18 @@ async def done_callback(callback: CallbackQuery) -> None:
         return
 
     user_id = upsert_user(callback.from_user.id, callback.from_user.username)
-    saved = mark_done_for_user(user_id, habit_id, date.today())
-    if not saved:
+    toggle_result = toggle_done_for_user(user_id, habit_id, date.today())
+    if toggle_result is None:
         await callback.answer("Habit not found", show_alert=True)
         return
 
-    await callback.answer("Saved")
+    callback_text = "Saved" if toggle_result == "marked" else "Removed"
+    await callback.answer(callback_text)
     if callback.message:
-        await callback.message.answer("Marked done for today ✅")
+        if toggle_result == "marked":
+            await callback.message.answer("Marked done for today ✅")
+        else:
+            await callback.message.answer("Removed done mark for today ↩️")
         await send_week_view(callback.message, user_id)
 
 
